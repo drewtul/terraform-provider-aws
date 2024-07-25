@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log"
 	"reflect"
+	"slices"
 	"strings"
 	"time"
 
@@ -2042,225 +2043,30 @@ func userPoolSchemaAttributeMatchesStandardAttribute(apiObject *awstypes.SchemaA
 
 	// All standard attributes always returned by API
 	// https://docs.aws.amazon.com/cognito/latest/developerguide/user-pool-settings-attributes.html#cognito-user-pools-standard-attributes
-	var standardAttributes = []awstypes.SchemaAttributeType{
-		{
-			AttributeDataType:      awstypes.AttributeDataTypeString,
-			DeveloperOnlyAttribute: aws.Bool(false),
-			Mutable:                aws.Bool(true),
-			Name:                   aws.String(names.AttrAddress),
-			Required:               aws.Bool(false),
-			StringAttributeConstraints: &awstypes.StringAttributeConstraintsType{
-				MaxLength: aws.String("2048"),
-				MinLength: aws.String("0"),
-			},
-		},
-		{
-			AttributeDataType:      awstypes.AttributeDataTypeString,
-			DeveloperOnlyAttribute: aws.Bool(false),
-			Mutable:                aws.Bool(true),
-			Name:                   aws.String("birthdate"),
-			Required:               aws.Bool(false),
-			StringAttributeConstraints: &awstypes.StringAttributeConstraintsType{
-				MaxLength: aws.String("10"),
-				MinLength: aws.String("10"),
-			},
-		},
-		{
-			AttributeDataType:      awstypes.AttributeDataTypeString,
-			DeveloperOnlyAttribute: aws.Bool(false),
-			Mutable:                aws.Bool(true),
-			Name:                   aws.String(names.AttrEmail),
-			Required:               aws.Bool(false),
-			StringAttributeConstraints: &awstypes.StringAttributeConstraintsType{
-				MaxLength: aws.String("2048"),
-				MinLength: aws.String("0"),
-			},
-		},
-		{
-			AttributeDataType:      awstypes.AttributeDataTypeBoolean,
-			DeveloperOnlyAttribute: aws.Bool(false),
-			Mutable:                aws.Bool(true),
-			Name:                   aws.String("email_verified"),
-			Required:               aws.Bool(false),
-		},
-		{
-			AttributeDataType:      awstypes.AttributeDataTypeString,
-			DeveloperOnlyAttribute: aws.Bool(false),
-			Mutable:                aws.Bool(true),
-			Name:                   aws.String("family_name"),
-			Required:               aws.Bool(false),
-			StringAttributeConstraints: &awstypes.StringAttributeConstraintsType{
-				MaxLength: aws.String("2048"),
-				MinLength: aws.String("0"),
-			},
-		},
-		{
-			AttributeDataType:      awstypes.AttributeDataTypeString,
-			DeveloperOnlyAttribute: aws.Bool(false),
-			Mutable:                aws.Bool(true),
-			Name:                   aws.String("gender"),
-			Required:               aws.Bool(false),
-			StringAttributeConstraints: &awstypes.StringAttributeConstraintsType{
-				MaxLength: aws.String("2048"),
-				MinLength: aws.String("0"),
-			},
-		},
-		{
-			AttributeDataType:      awstypes.AttributeDataTypeString,
-			DeveloperOnlyAttribute: aws.Bool(false),
-			Mutable:                aws.Bool(true),
-			Name:                   aws.String("given_name"),
-			Required:               aws.Bool(false),
-			StringAttributeConstraints: &awstypes.StringAttributeConstraintsType{
-				MaxLength: aws.String("2048"),
-				MinLength: aws.String("0"),
-			},
-		},
-		{
-			AttributeDataType:      awstypes.AttributeDataTypeString,
-			DeveloperOnlyAttribute: aws.Bool(false),
-			Mutable:                aws.Bool(true),
-			Name:                   aws.String("locale"),
-			Required:               aws.Bool(false),
-			StringAttributeConstraints: &awstypes.StringAttributeConstraintsType{
-				MaxLength: aws.String("2048"),
-				MinLength: aws.String("0"),
-			},
-		},
-		{
-			AttributeDataType:      awstypes.AttributeDataTypeString,
-			DeveloperOnlyAttribute: aws.Bool(false),
-			Mutable:                aws.Bool(true),
-			Name:                   aws.String("middle_name"),
-			Required:               aws.Bool(false),
-			StringAttributeConstraints: &awstypes.StringAttributeConstraintsType{
-				MaxLength: aws.String("2048"),
-				MinLength: aws.String("0"),
-			},
-		},
-		{
-			AttributeDataType:      awstypes.AttributeDataTypeString,
-			DeveloperOnlyAttribute: aws.Bool(false),
-			Mutable:                aws.Bool(true),
-			Name:                   aws.String(names.AttrName),
-			Required:               aws.Bool(false),
-			StringAttributeConstraints: &awstypes.StringAttributeConstraintsType{
-				MaxLength: aws.String("2048"),
-				MinLength: aws.String("0"),
-			},
-		},
-		{
-			AttributeDataType:      awstypes.AttributeDataTypeString,
-			DeveloperOnlyAttribute: aws.Bool(false),
-			Mutable:                aws.Bool(true),
-			Name:                   aws.String("nickname"),
-			Required:               aws.Bool(false),
-			StringAttributeConstraints: &awstypes.StringAttributeConstraintsType{
-				MaxLength: aws.String("2048"),
-				MinLength: aws.String("0"),
-			},
-		},
-		{
-			AttributeDataType:      awstypes.AttributeDataTypeString,
-			DeveloperOnlyAttribute: aws.Bool(false),
-			Mutable:                aws.Bool(true),
-			Name:                   aws.String("phone_number"),
-			Required:               aws.Bool(false),
-			StringAttributeConstraints: &awstypes.StringAttributeConstraintsType{
-				MaxLength: aws.String("2048"),
-				MinLength: aws.String("0"),
-			},
-		},
-		{
-			AttributeDataType:      awstypes.AttributeDataTypeBoolean,
-			DeveloperOnlyAttribute: aws.Bool(false),
-			Mutable:                aws.Bool(true),
-			Name:                   aws.String("phone_number_verified"),
-			Required:               aws.Bool(false),
-		},
-		{
-			AttributeDataType:      awstypes.AttributeDataTypeString,
-			DeveloperOnlyAttribute: aws.Bool(false),
-			Mutable:                aws.Bool(true),
-			Name:                   aws.String("picture"),
-			Required:               aws.Bool(false),
-			StringAttributeConstraints: &awstypes.StringAttributeConstraintsType{
-				MaxLength: aws.String("2048"),
-				MinLength: aws.String("0"),
-			},
-		},
-		{
-			AttributeDataType:      awstypes.AttributeDataTypeString,
-			DeveloperOnlyAttribute: aws.Bool(false),
-			Mutable:                aws.Bool(true),
-			Name:                   aws.String("preferred_username"),
-			Required:               aws.Bool(false),
-			StringAttributeConstraints: &awstypes.StringAttributeConstraintsType{
-				MaxLength: aws.String("2048"),
-				MinLength: aws.String("0"),
-			},
-		},
-		{
-			AttributeDataType:      awstypes.AttributeDataTypeString,
-			DeveloperOnlyAttribute: aws.Bool(false),
-			Mutable:                aws.Bool(true),
-			Name:                   aws.String(names.AttrProfile),
-			Required:               aws.Bool(false),
-			StringAttributeConstraints: &awstypes.StringAttributeConstraintsType{
-				MaxLength: aws.String("2048"),
-				MinLength: aws.String("0"),
-			},
-		},
-		{
-			AttributeDataType:      awstypes.AttributeDataTypeString,
-			DeveloperOnlyAttribute: aws.Bool(false),
-			Mutable:                aws.Bool(false),
-			Name:                   aws.String("sub"),
-			Required:               aws.Bool(true),
-			StringAttributeConstraints: &awstypes.StringAttributeConstraintsType{
-				MaxLength: aws.String("2048"),
-				MinLength: aws.String("1"),
-			},
-		},
-		{
-			AttributeDataType:      awstypes.AttributeDataTypeNumber,
-			DeveloperOnlyAttribute: aws.Bool(false),
-			Mutable:                aws.Bool(true),
-			Name:                   aws.String("updated_at"),
-			NumberAttributeConstraints: &awstypes.NumberAttributeConstraintsType{
-				MinValue: aws.String("0"),
-			},
-			Required: aws.Bool(false),
-		},
-		{
-			AttributeDataType:      awstypes.AttributeDataTypeString,
-			DeveloperOnlyAttribute: aws.Bool(false),
-			Mutable:                aws.Bool(true),
-			Name:                   aws.String("website"),
-			Required:               aws.Bool(false),
-			StringAttributeConstraints: &awstypes.StringAttributeConstraintsType{
-				MaxLength: aws.String("2048"),
-				MinLength: aws.String("0"),
-			},
-		},
-		{
-			AttributeDataType:      awstypes.AttributeDataTypeString,
-			DeveloperOnlyAttribute: aws.Bool(false),
-			Mutable:                aws.Bool(true),
-			Name:                   aws.String("zoneinfo"),
-			Required:               aws.Bool(false),
-			StringAttributeConstraints: &awstypes.StringAttributeConstraintsType{
-				MaxLength: aws.String("2048"),
-				MinLength: aws.String("0"),
-			},
-		},
+	// apiObject here represents a Schema Attribute not present in the user configuration
+	// The Schema Attributes can only be added not modified, so we do not need to check all their attributes
+	// We just check if the Schema Attribute name is in the documented list of defaults
+	var standardAttributes = []string{
+		names.AttrAddress,
+		"birthdate",
+		names.AttrEmail,
+		"email_verified",
+		"family_name",
+		"gender",
+		"given_name",
+		"locale",
+		"middle_name",
+		names.AttrName,
+		"nickname",
+		"phone_number",
+		"phone_number_verified",
+		"picture",
+		"preferred_username",
+		names.AttrProfile,
+		"sub",
+		"updated_at",
+		"website",
+		"zoneinfo",
 	}
-
-	for _, standardAttribute := range standardAttributes {
-		if reflect.DeepEqual(*apiObject, standardAttribute) {
-			return true
-		}
-	}
-
-	return false
+	return slices.Contains(standardAttributes, *apiObject.Name)
 }
