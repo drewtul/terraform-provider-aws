@@ -19,6 +19,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
@@ -82,6 +84,14 @@ func (r *resourceFlow) Schema(ctx context.Context, req resource.SchemaRequest, r
 				CustomType: fwtypes.ARNType,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
+				},
+			},
+			"prepare_flow": schema.BoolAttribute{
+				Optional: true,
+				Computed: true,
+				Default:  booldefault.StaticBool(true),
+				PlanModifiers: []planmodifier.Bool{
+					boolplanmodifier.UseStateForUnknown(),
 				},
 			},
 			names.AttrTags:    tftags.TagsAttribute(),
@@ -642,13 +652,27 @@ func (r *resourceFlow) Create(ctx context.Context, req resource.CreateRequest, r
 	}
 
 	createTimeout := r.CreateTimeout(ctx, plan.Timeouts)
-	_, err = waitFlowCreated(ctx, conn, plan.ID.ValueString(), createTimeout)
-	if err != nil {
-		resp.Diagnostics.AddError(
-			create.ProblemStandardMessage(names.BedrockAgent, create.ErrActionWaitingForCreation, ResNameFlow, plan.Name.String(), err),
-			err.Error(),
-		)
-		return
+	if plan.PrepareFlow.ValueBool() {
+		prepareInput := &bedrockagent.PrepareFlowInput{
+			FlowIdentifier: plan.ID.ValueStringPointer(),
+		}
+		_, err = conn.PrepareFlow(ctx, prepareInput)
+		if err != nil {
+			resp.Diagnostics.AddError(
+				create.ProblemStandardMessage(names.BedrockAgent, create.ErrActionCreating, ResNameFlow, plan.Name.String(), err),
+				err.Error(),
+			)
+			return
+		}
+
+		_, err = waitFlowPrepared(ctx, conn, plan.ID.ValueString(), createTimeout)
+		if err != nil {
+			resp.Diagnostics.AddError(
+				create.ProblemStandardMessage(names.BedrockAgent, create.ErrActionWaitingForCreation, ResNameFlow, plan.Name.String(), err),
+				err.Error(),
+			)
+			return
+		}
 	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
@@ -731,13 +755,27 @@ func (r *resourceFlow) Update(ctx context.Context, req resource.UpdateRequest, r
 	}
 
 	updateTimeout := r.UpdateTimeout(ctx, plan.Timeouts)
-	_, err := waitFlowUpdated(ctx, conn, plan.ID.ValueString(), updateTimeout)
-	if err != nil {
-		resp.Diagnostics.AddError(
-			create.ProblemStandardMessage(names.BedrockAgent, create.ErrActionWaitingForUpdate, ResNameFlow, plan.ID.String(), err),
-			err.Error(),
-		)
-		return
+	if plan.PrepareFlow.ValueBool() {
+		prepareInput := &bedrockagent.PrepareFlowInput{
+			FlowIdentifier: plan.ID.ValueStringPointer(),
+		}
+		_, err := conn.PrepareFlow(ctx, prepareInput)
+		if err != nil {
+			resp.Diagnostics.AddError(
+				create.ProblemStandardMessage(names.BedrockAgent, create.ErrActionUpdating, ResNameFlow, plan.ID.String(), err),
+				err.Error(),
+			)
+			return
+		}
+
+		_, err = waitFlowPrepared(ctx, conn, plan.ID.ValueString(), updateTimeout)
+		if err != nil {
+			resp.Diagnostics.AddError(
+				create.ProblemStandardMessage(names.BedrockAgent, create.ErrActionWaitingForUpdate, ResNameFlow, plan.ID.String(), err),
+				err.Error(),
+			)
+			return
+		}
 	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
@@ -768,69 +806,19 @@ func (r *resourceFlow) Delete(ctx context.Context, req resource.DeleteRequest, r
 		)
 		return
 	}
-
-	deleteTimeout := r.DeleteTimeout(ctx, state.Timeouts)
-	_, err = waitFlowDeleted(ctx, conn, state.ID.ValueString(), deleteTimeout)
-	if err != nil {
-		resp.Diagnostics.AddError(
-			create.ProblemStandardMessage(names.BedrockAgent, create.ErrActionWaitingForDeletion, ResNameFlow, state.ID.String(), err),
-			err.Error(),
-		)
-		return
-	}
 }
 
 func (r *resourceFlow) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	resource.ImportStatePassthroughID(ctx, path.Root(names.AttrID), req, resp)
+	
+	// Set prepare_flow to true to match the default value
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("prepare_flow"), types.BoolValue(true))...)
 }
 
-const (
-	statusChangePending = "PENDING"
-	statusDeleting      = "DELETING"
-	statusNormal        = "ACTIVE"
-	statusUpdated       = "ACTIVE"
-)
-
-func waitFlowCreated(ctx context.Context, conn *bedrockagent.Client, id string, timeout time.Duration) (*bedrockagent.GetFlowOutput, error) {
+func waitFlowPrepared(ctx context.Context, conn *bedrockagent.Client, id string, timeout time.Duration) (*bedrockagent.GetFlowOutput, error) {
 	stateConf := &retry.StateChangeConf{
-		Pending:                   []string{},
-		Target:                    enum.Slice(statusNormal),
-		Refresh:                   statusFlow(ctx, conn, id),
-		Timeout:                   timeout,
-		NotFoundChecks:            20,
-		ContinuousTargetOccurence: 2,
-	}
-
-	outputRaw, err := stateConf.WaitForStateContext(ctx)
-	if out, ok := outputRaw.(*bedrockagent.GetFlowOutput); ok {
-		return out, err
-	}
-
-	return nil, err
-}
-
-func waitFlowUpdated(ctx context.Context, conn *bedrockagent.Client, id string, timeout time.Duration) (*bedrockagent.GetFlowOutput, error) {
-	stateConf := &retry.StateChangeConf{
-		Pending:                   enum.Slice(statusChangePending),
-		Target:                    enum.Slice(statusUpdated),
-		Refresh:                   statusFlow(ctx, conn, id),
-		Timeout:                   timeout,
-		NotFoundChecks:            20,
-		ContinuousTargetOccurence: 2,
-	}
-
-	outputRaw, err := stateConf.WaitForStateContext(ctx)
-	if out, ok := outputRaw.(*bedrockagent.GetFlowOutput); ok {
-		return out, err
-	}
-
-	return nil, err
-}
-
-func waitFlowDeleted(ctx context.Context, conn *bedrockagent.Client, id string, timeout time.Duration) (*bedrockagent.GetFlowOutput, error) {
-	stateConf := &retry.StateChangeConf{
-		Pending: enum.Slice(statusDeleting, statusNormal),
-		Target:  []string{},
+		Pending: enum.Slice(awstypes.FlowStatusNotPrepared, awstypes.FlowStatusPreparing),
+		Target:  enum.Slice(awstypes.FlowStatusPrepared),
 		Refresh: statusFlow(ctx, conn, id),
 		Timeout: timeout,
 	}
@@ -890,6 +878,7 @@ type resourceFlowModel struct {
 	Name                     types.String                                         `tfsdk:"name"`
 	ExecutionRoleArn         fwtypes.ARN                                          `tfsdk:"execution_role_arn"`
 	CustomerEncryptionKeyArn fwtypes.ARN                                          `tfsdk:"customer_encryption_key_arn"`
+	PrepareFlow              types.Bool                                           `tfsdk:"prepare_flow"`
 	Tags                     tftags.Map                                           `tfsdk:"tags"`
 	TagsAll                  tftags.Map                                           `tfsdk:"tags_all"`
 	Timeouts                 timeouts.Value                                       `tfsdk:"timeouts"`
