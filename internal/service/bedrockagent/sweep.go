@@ -18,6 +18,7 @@ import (
 func RegisterSweepers() {
 	awsv2.Register("aws_bedrockagent_agent", sweepAgents)
 	awsv2.Register("aws_bedrockagent_data_source", sweepDataSources)
+	awsv2.Register("aws_bedrockagent_flow", sweepFlows)
 	awsv2.Register("aws_bedrockagent_knowledge_base", sweepKnowledgeBases, "aws_bedrockagent_agent", "aws_bedrockagent_data_source")
 }
 
@@ -96,6 +97,28 @@ func sweepKnowledgeBases(ctx context.Context, client *conns.AWSClient) ([]sweep.
 		for _, v := range page.KnowledgeBaseSummaries {
 			sweepResources = append(sweepResources, framework.NewSweepResource(newKnowledgeBaseResource, client,
 				framework.NewAttribute(names.AttrID, aws.ToString(v.KnowledgeBaseId))))
+		}
+	}
+
+	return sweepResources, nil
+}
+
+func sweepFlows(ctx context.Context, client *conns.AWSClient) ([]sweep.Sweepable, error) {
+	input := &bedrockagent.ListFlowsInput{}
+	conn := client.BedrockAgentClient(ctx)
+	sweepResources := make([]sweep.Sweepable, 0)
+
+	pages := bedrockagent.NewListFlowsPaginator(conn, input)
+	for pages.HasMorePages() {
+		page, err := pages.NextPage(ctx)
+
+		if err != nil {
+			return nil, err
+		}
+
+		for _, v := range page.FlowSummaries {
+			sweepResources = append(sweepResources, framework.NewSweepResource(newResourceFlow, client,
+				framework.NewAttribute(names.AttrID, aws.ToString(v.Id))))
 		}
 	}
 
